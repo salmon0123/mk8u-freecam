@@ -4,7 +4,7 @@ This is a script that generates a graphics pack for Cemu to enable Nintendo's de
 In order to run this script, you need the following:
 1. Gambit.rpx from Splatoon (AGMX01) or Splatoon Testfire (AGGX01). These titles contain some camera code that we need to copy into Mario Kart 8.
 2. Python >=3.10
-3. rpl2elf (e.g. https://github.com/Relys/rpl2elf)
+3. rpl2elf (e.g. from [here](https://github.com/Relys/rpl2elf))
 4. powerpc-linux-gnu-objdump (install with e.g. sudo apt install binutils-powerpc-linux-gnu). You could also modify the script to use powerpc-eabi-objdump, if you already have devKitPPC installed on your system.
 
 The script also invokes readelf and xxd. You'll need to run it in Linux, or in a Linux environment like WSL.
@@ -16,3 +16,6 @@ Once everything finishes up, copy the Freecam folder to Cemu/graphicPacks/MarioK
 
 # Controls
 The controls are: left stick button to enable/disable; R to zoom out, L to zoom in, left stick to rotate camera, right stick to control camera position.
+
+# Credits
+Thanks to shadowninja108 for [s2-freecam](https://github.com/shadowninja108/s2-freecam/tree/main).
