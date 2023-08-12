@@ -10,7 +10,7 @@ In order to run this script, you need the following:
 The script also invokes readelf and xxd. You'll need to run it in Linux, or in a Linux environment like WSL.
 
 # Usage
-Before running the script, copy rpl2elf and Gambit.rpx to the same directory as the script. Then run it with `python script.py [rpx file]`.
+Before running the script, copy rpl2elf to the same directory as the script. Then run it with `python script.py /path/to/Gambit.rpx`.
 
 Once everything finishes up, copy the Freecam folder to Cemu/graphicPacks/MarioKart8.
 

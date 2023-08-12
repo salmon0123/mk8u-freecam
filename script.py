@@ -8,7 +8,11 @@ def print_line(opcode, operands):
 
 def main():
     file = sys.argv[1]
-    version = int(input("Which title is " + file + "?:\n[1] Splatoon (AGMX01) (latest patch) \n[2] Splatoon Testfire (AGGX01)\n"))
+    version = -1
+    while (version not in {0,1,2}):
+        version = int(input("Which title is " + file + "?:\n[0] Splatoon (AGMX01) (v288, latest patch) \n[1] Splatoon (AGMX01) (v272) \n[2] Splatoon Testfire (AGGX01)\n"))
+        if (version not in {0,1,2}):
+            print("Invalid selection. Try again.\n")
     print("Converting rpx to elf...")
     comm = subprocess.run(["./rpl2elf", file, "Gambit"])
     if (comm.returncode != 0):
@@ -38,12 +42,13 @@ def main():
         start_address = int(columns[0], 16)
         for i in range(0,4):
             address = start_address + 0x4*i
+            if (version == 0):
+                start = 0x029f6c10
             if (version == 1):
                 start = 0x029f6bd0
-                end = 0x029f74c0
             if (version == 2):
                 start = 0x02946360
-                end = 0x2946c50
+            end = start + 0x8f0
             if ((address >= start) and (address <= end)):
                 match = True
                 newfile += columns[i+1]
@@ -70,29 +75,29 @@ def main():
     os.remove("camera_functions")
 
     scratch = """[MK8Freecam]
-moduleMatches = 0xd09700ce
+moduleMatches = 0x9f0a90b7
 
 ; enables Nintendo's freecam in Mario Kart 8
 ; Controls: left stick button to enable/disable; R to zoom out, L to zoom in, left stick to rotate camera, right stick to control camera position
 
 ; hooks
-0x027b9d20 = ba agl_lyr_Layer_initialize_
-0x027b7bf8 = bla set_freecam_params
-0x027b9ec0 = bla set_flags
+0x027b9f54 = ba agl_lyr_Layer_initialize_
+0x027b7e2c = bla set_freecam_params
+0x027ba0f4 = bla set_flags
 
 ; writes
-0x0279dd90 = rlwinm. r10,r0,0,26,26         ; zoom in with L button rather than (+)
+0x0279dfc4 = rlwinm. r10,r0,0,26,26         ; zoom in with L button rather than (+)
 
 ; common functions
-0x027216b4 = malloc:
-0x027b9280 = agl_lyr_Layer_updateDebugInfo_:
-0x027d247c = agl_lyr_RenderStep_RenderStep:
-0x0273d1ac = sead_HeapMgr_getCurrentHeap:
-0x02736c2c = sead_PerspectiveProjection_PerspectiveProjection:
-0x02737634 = sead_DirectProjection_DirectProjection:
-0x02736f4c = sead_OrthoProjection_OrthoProjection:
-0x0274c0d0 = sead_CriticalSection_CriticalSection:
-0x02677b48 = ASM_MTXCopy:
+0x02721904 = malloc:
+0x027b94b4 = agl_lyr_Layer_updateDebugInfo_:
+0x027d26b0 = agl_lyr_RenderStep_RenderStep:
+0x0273d360 = sead_HeapMgr_getCurrentHeap:
+0x02736de0 = sead_PerspectiveProjection_PerspectiveProjection:
+0x027377e8 = sead_DirectProjection_DirectProjection:
+0x02737100 = sead_OrthoProjection_OrthoProjection:
+0x0274c304 = sead_CriticalSection_CriticalSection:
+0x02677cfc = ASM_MTXCopy:
 
 ; constants                                 ; may need to edit this depending on your setup
 controllerPtr = 0x1E572D94                  ; do a memory search to find the address for the last (or current) button held, then subtract 0x10c
@@ -105,7 +110,7 @@ ADDR_10127ab8 = 0x10127ab8
 ADDR_10127ad0 = 0x10127ad0
 ADDR_10127b38 = 0x10127b38
 ADDR_10127b98 = 0x10127b98
-ADDR_1018c7cc = 0x1018c7cc
+ADDR_1018c7ec = 0x1018c7ec
 ADDR_10205a70 = 0x10205a70
 ADDR_10205f78 = 0x10205f78
 ADDR_10205f9c = 0x10205f9c
@@ -187,6 +192,31 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
             branch_loc = int(operands, 16)//4
             operands = "line_" + str(branch_loc)
             label_list.append(branch_loc)
+
+        if (opcode == 'bl' and version == 0):
+            match operands:
+                case '0xffed6de0':
+                    operands = "malloc"
+                case '0xfffff554':
+                    operands = "agl_lyr_Layer_updateDebugInfo_"
+                case '0x2018':
+                    operands = "agl_lyr_RenderStep_RenderStep"
+                case '0xffefc288':
+                    operands = "sead_HeapMgr_getCurrentHeap"
+                case '0xffef16a8':
+                    operands = "sead_PerspectiveProjection_PerspectiveProjection"
+                case '0xffef23a0':
+                    operands = "sead_DirectProjection_DirectProjection"
+                case '0xffef1b7c':
+                    operands = "sead_OrthoProjection_OrthoProjection"
+                case '0xfff0c24c':
+                    operands = "sead_CriticalSection_CriticalSection"
+                case '0x33deb0':
+                    operands = "ASM_MTXCopy"
+                case '0x3df060':
+                    operands = "import.coreinit.OSBlockSet"
+                case '0x3df058':
+                    operands = "import.coreinit.OSBlockMove"
 
         if (opcode == 'bl' and version == 1):
             match operands:
@@ -321,9 +351,9 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
             case 324:
                 operands = "r6,r6,ADDR_10205f9c@l"
             case 402:
-                operands = "r3,ADDR_1018c7cc@ha"
+                operands = "r3,ADDR_1018c7ec@ha"
             case 403:
-                operands = "r3,ADDR_1018c7cc@l(r3)"
+                operands = "r3,ADDR_1018c7ec@l(r3)"
             case 486:
                 operands = "r26,r26,ADDR_10127ab8@l"
             case 503:
