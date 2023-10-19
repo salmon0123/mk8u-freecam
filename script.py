@@ -3,34 +3,42 @@ import os
 import sys
 import re
 
+# return lines with unified spacing between opcode and operands
 def print_line(opcode, operands):
     return opcode + " "*(11-len(opcode)) + operands
 
 def main():
     file = sys.argv[1]
     version = -1
+    # ask user which executable they are providing
     while (version not in {0,1,2}):
         version = int(input("Which title is " + file + "?:\n[0] Splatoon (AGMX01) (v288, latest patch) \n[1] Splatoon (AGMX01) (v272) \n[2] Splatoon Testfire (AGGX01)\n"))
         if (version not in {0,1,2}):
             print("Invalid selection. Try again.\n")
+
     print("Converting rpx to elf...")
+    # run rpl2elf to decompress the executable
     comm = subprocess.run(["./rpl2elf", file, "Gambit"])
     if (comm.returncode != 0):
-        print("rpl2elf not found.")
+        print("An error occurred. Is rpl2elf present in the current working directory with executable permissions?")
         return
 
+    # dump the code from Splatoon using readelf -x
     print("Dumping .text section...")
     with open("dump", "w+") as outfile:
         comm = subprocess.run(["readelf", "-x", "2", "Gambit"], stdout=outfile)
     os.remove("Gambit")
     if (comm.returncode != 0):
-        print("An error occurred.")
+        print("An error occurred while invoking readelf.")
         return
 
+    # fetch the bytes of code dumped by readelf
     with open("dump", "r") as infile:
         file = infile.readlines()
     os.remove("dump")
 
+    # obtain the needed code from Splatoon, depending on the version of the executable
+    # provided by the user
     newfile = ""
     for line in file:
         match = False
@@ -55,25 +63,29 @@ def main():
         if (match == True):
             newfile += "\n"
 
+    # dump the code to the dummy file "bytecode"
     with open("bytecode", "w") as outfile:
         comm = subprocess.run(["xxd", "-r", "-p"], input=newfile, stdout=outfile, text=True)
     if (comm.returncode != 0):
-        print("An error occurred.")
+        print("An error occurred while invoking xxd.")
         os.remove("bytecode")
         return
 
     print("Disassembling camera functions...")
 
+    # disassemble the bytecode corresponding to the camera functions we need
     with open("camera_functions", "w") as outfile:
         comm = subprocess.run(["powerpc-linux-gnu-objdump", "-b", "binary", "-m", "powerpc:750", "bytecode", "-D", "-EB"], stdout=outfile)
     os.remove("bytecode")
     if (comm.returncode != 0):
-        print("An error occurred.")
+        print("An error occurred. Is powerpc-linux-gnu-objdump installed?")
         return
 
+    # obtain the assembly code from the file
     file = open("camera_functions", "r").readlines()
     os.remove("camera_functions")
 
+    # Construct the header for the Cemu patch file
     scratch = """[MK8Freecam]
 moduleMatches = 0x9f0a90b7
 
@@ -179,6 +191,10 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
     codelines = []
     label_list = []
 
+    # Obtain the opcode and operands for each instruction.
+    # For branch instructions, the assembler did not create labels for the jumps,
+    # but we need these in place because we will be modifying and removing some instructions.
+    # Create these in the file.
     for num, line in enumerate(file):
         if (num <= 6):
             continue
@@ -187,12 +203,15 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
         opcode = instruction.group(1)
         operands = instruction.group(2)
 
-        # labels
+        # Check if the current instruction is a branch instruction
         if (opcode in ['b','bne-','bne+','beq','beq-','blt','blt-','bgt','bgt-','ble','ble-','bge','bge-','bdnz+']):
             branch_loc = int(operands, 16)//4
             operands = "line_" + str(branch_loc)
             label_list.append(branch_loc)
 
+        # Modify function calls to explicitly reference the symbols we defined in the header.
+        # The addresses we provided are where these functions begin in the Mario Kart 8 executable.
+        # Each version of Splatoon has different offsets.
         if (opcode == 'bl' and version == 0):
             match operands:
                 case '0xffed6de0':
@@ -268,7 +287,8 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
                 case '0x3f2c48':
                     operands = "import.coreinit.OSBlockMove"
 
-        # code fixes
+        # Adjust some instructions to explicitly reference the labels we defined in the header.
+        # Modify several instructions because Mario Kart 8's code is slightly different.
         match num:
             case 20:
                 operands = "r12,ADDR_10127ab0@ha"
@@ -373,28 +393,32 @@ agl_lyr_Layer_DebugInfo_DebugInfo:
             case 531:
                 operands = "r12,ADDR_10206238@l(r12)"
 
-        # fix offsets greater than 0x338
+        # Instructions that access DebugInfo class offsets greater than 0x338 need to be
+        # adjusted down, since the implementation of the DebugInfo class is slightly different
+        # in Mario Kart 8 than Splatoon.
         if (num >= 264):
             match = re.search(r'[\,\(](8[56789]\d|9\d\d)', operands)
             if (not(match is None)):
                 operands = re.sub(match.group(1), str(int(match.group(1)) - 24), operands)
 
+        # Iteratively build the final code
         codelines.append([opcode, operands])
 
-    # print everything
     for num, line in enumerate(codelines):
         opcode = line[0]
         operands = line[1]
-        # don't display these lines
+        # Certain pieces of the code in Splatoon need to be skipped
         if (num == 234 or (num >= 242 and num < 262) or num == 283 or (num >= 461 and num < 485)):
             continue
-        # skip these calls
+        # Certain function calls need to be skipped since they are obsolete
         if (num == 166 or num == 189 or num == 193 or num == 266 or num == 537 or num == 561):
             continue
+        # Add the labels to the final output
         if (num in label_list):
             scratch += "\nline_" + str(num) + ":\n"
         if (num == 387):
             scratch += "\nagl_lyr_Layer_initialize_:\n"
+        # Add in some code that calls the DebugInfo constructor
         if (num == 485):
             scratch += """li         r3,0x49c
 bl         malloc
@@ -410,6 +434,7 @@ li         r31,0x0
 """
         scratch += print_line(opcode, operands) + "\n"
 
+    # Write the code to the patch_freecam.asm file
     with open("Freecam/patch_freecam.asm", "w") as outfile:
         outfile.write(scratch)
 
