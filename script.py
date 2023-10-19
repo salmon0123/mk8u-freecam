@@ -131,15 +131,15 @@ DAT_10147528:
 DAT_1014752c:
 .float 10
 DAT_10147530:
-.float 0.00999999977648
+.float 0.01
 DAT_10147534:
 .float 1000
 DAT_10147538:
 .float 45
 DAT_1014753c:
-.float 1.77777779102
+.float 1.77777778
 DAT_10147540:
-.float 0.10000000149
+.float 0.1
 
 set_freecam_params:
 lis        r7,controllerPtr@h
