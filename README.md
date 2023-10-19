@@ -1,4 +1,4 @@
-This is a script that generates a graphics pack for Cemu to enable Nintendo's debug camera in Mario Kart 8.
+This is a script that generates a graphics pack for Cemu to enable Nintendo's debug camera in Mario Kart 8 ([video demonstration](https://www.youtube.com/watch?v=3ZkCscinOSQ)).
 
 # Prerequisites
 In order to run this script, you need the following:
